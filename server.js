@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
+const { Expo } = require("expo-server-sdk");
 
 const serviceAccount = require("./serviceAccountKey.json");
 
@@ -14,9 +15,10 @@ const app = express();
 app.use(cors());
 
 let savedToken = "";
+const expo = new Expo();
 
 // -----------------------------
-// SAVE FCM TOKEN
+// SAVE FCM/EXPO TOKEN
 // -----------------------------
 app.get("/save-token", (req, res) => {
 
@@ -62,13 +64,16 @@ setInterval(async () => {
 
       console.log("⚠ OVERCURRENT DETECTED");
 
-      await admin.messaging().send({
-        token: savedToken,
-        notification: {
+      const messages = [
+        {
+          to: savedToken,
+          sound: "default",
           title: "⚠ AmpSense Alert",
-          body: `Current ${current.toFixed(2)}A exceeded threshold ${threshold}A`
-        }
-      });
+          body: `Current ${current.toFixed(2)}A exceeded threshold ${threshold}A`,
+        },
+      ];
+
+      await expo.sendPushNotificationsAsync(messages);
 
       console.log("Notification Sent");
     }
