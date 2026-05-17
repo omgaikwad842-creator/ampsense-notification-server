@@ -14,13 +14,14 @@ const db = admin.firestore();
 const app = express();
 app.use(cors());
 
-let savedToken = "";
 const expo = new Expo();
 
+let alertSent = false;
+
 // -----------------------------
-// SAVE FCM/EXPO TOKEN
+// SAVE EXPO TOKEN IN FIREBASE
 // -----------------------------
-app.get("/save-token", (req, res) => {
+app.get("/save-token", async (req, res) => {
 
   const token = req.query.token;
 
@@ -28,7 +29,9 @@ app.get("/save-token", (req, res) => {
     return res.send("No token received");
   }
 
-  savedToken = token;
+  await db.collection("tokens").doc("device1").set({
+    token: token,
+  });
 
   console.log("Token Saved");
 
@@ -58,9 +61,25 @@ setInterval(async () => {
     console.log("Current:", current);
 
     // -----------------------------
+    // GET SAVED TOKEN
+    // -----------------------------
+    const tokenSnap = await db
+      .collection("tokens")
+      .doc("device1")
+      .get();
+
+    if (!tokenSnap.exists) return;
+
+    const savedToken = tokenSnap.data().token;
+
+    // -----------------------------
     // OVERCURRENT CHECK
     // -----------------------------
-    if (current > threshold && savedToken) {
+    if (
+      current > threshold &&
+      savedToken &&
+      !alertSent
+    ) {
 
       console.log("⚠ OVERCURRENT DETECTED");
 
@@ -69,13 +88,25 @@ setInterval(async () => {
           to: savedToken,
           sound: "default",
           title: "⚠ AmpSense Alert",
-          body: `Current ${current.toFixed(2)}A exceeded threshold ${threshold}A`,
+          body:
+            `Current ${current.toFixed(2)}A exceeded threshold ${threshold}A`,
         },
       ];
 
       await expo.sendPushNotificationsAsync(messages);
 
       console.log("Notification Sent");
+
+      alertSent = true;
+    }
+
+    // -----------------------------
+    // RESET ALERT
+    // -----------------------------
+    if (current <= threshold) {
+
+      alertSent = false;
+
     }
 
   } catch (err) {
